@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: track-foundry-multiplayer
+    runtime: go
+    buildCommand: go build -o track-foundry-server .
+    startCommand: ./track-foundry-server
+    healthCheckPath: /health
+    envVars:
+      - key: ALLOWED_ORIGINS
+        value: https://sites.google.com
