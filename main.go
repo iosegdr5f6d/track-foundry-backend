@@ -89,8 +89,8 @@ func newServer() *server {
 
 func configuredOrigins() map[string]bool {
 	origins := map[string]bool{
-		"http://localhost:3000": true, "http://localhost:5173": true, "http://localhost:8080": true,
-		"http://127.0.0.1:3000": true, "http://127.0.0.1:5173": true, "http://127.0.0.1:8080": true,
+		"http://localhost:3000": true, "http://localhost:5173": true, "http://localhost:8000": true, "http://localhost:8080": true,
+		"http://127.0.0.1:3000": true, "http://127.0.0.1:5173": true, "http://127.0.0.1:8000": true, "http://127.0.0.1:8080": true,
 		"https://sites.google.com": true,
 	}
 	for _, origin := range strings.Split(os.Getenv("ALLOWED_ORIGINS"), ",") {
@@ -447,6 +447,8 @@ func (s *server) cleanupLoop() {
 		}
 		// A disconnected guest may have expired without causing another room
 		// event. Refresh surviving rooms so clients remove that stale entry.
-		for _, code := range s.rooms.RoomCodes() { s.broadcastRoom(code) }
+		for _, code := range s.rooms.RoomCodes() {
+			s.broadcastRoom(code)
+		}
 	}
 }
