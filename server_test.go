@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -9,6 +10,90 @@ import (
 
 	"github.com/gorilla/websocket"
 )
+
+func TestCORSAllowsConfiguredOriginsAndRejectsOpaqueOrigins(t *testing.T) {
+	s := newServer()
+	allowed := "https://sites.google.com"
+	health := httptest.NewRequest(http.MethodGet, "/health", nil)
+	health.Header.Set("Origin", allowed)
+	healthResult := httptest.NewRecorder()
+	s.routes().ServeHTTP(healthResult, health)
+	if healthResult.Code != http.StatusOK || healthResult.Header().Get("Access-Control-Allow-Origin") != allowed {
+		t.Fatalf("allowed health request missing CORS headers: status=%d origin=%q", healthResult.Code, healthResult.Header().Get("Access-Control-Allow-Origin"))
+	}
+
+	preflight := httptest.NewRequest(http.MethodOptions, "/v1/rooms", nil)
+	preflight.Header.Set("Origin", "http://127.0.0.1:8080")
+	preflight.Header.Set("Access-Control-Request-Method", http.MethodPost)
+	preflight.Header.Set("Access-Control-Request-Headers", "content-type,authorization")
+	preflightResult := httptest.NewRecorder()
+	s.routes().ServeHTTP(preflightResult, preflight)
+	if preflightResult.Code != http.StatusNoContent || preflightResult.Header().Get("Access-Control-Allow-Origin") != "http://127.0.0.1:8080" || !strings.Contains(preflightResult.Header().Get("Access-Control-Allow-Headers"), "Authorization") {
+		t.Fatalf("allowed preflight response is incomplete: status=%d headers=%v", preflightResult.Code, preflightResult.Header())
+	}
+
+	for _, origin := range []string{"null", "https://untrusted.example"} {
+		request := httptest.NewRequest(http.MethodGet, "/health", nil)
+		request.Header.Set("Origin", origin)
+		result := httptest.NewRecorder()
+		s.routes().ServeHTTP(result, request)
+		if result.Header().Get("Access-Control-Allow-Origin") != "" {
+			t.Fatalf("opaque or untrusted origin %q received CORS access", origin)
+		}
+	}
+}
+
+func TestWebSocketOriginPolicy(t *testing.T) {
+	s := newServer()
+	h := httptest.NewServer(s.routes())
+	defer h.Close()
+	url := "ws" + strings.TrimPrefix(h.URL, "http") + "/ws"
+
+	allowed, response, err := websocket.DefaultDialer.Dial(url, http.Header{"Origin": []string{"https://sites.google.com"}})
+	if err != nil {
+		t.Fatalf("allowed origin was rejected: response=%v err=%v", response, err)
+	}
+	_ = allowed.Close()
+
+	denied, response, err := websocket.DefaultDialer.Dial(url, http.Header{"Origin": []string{"null"}})
+	if denied != nil {
+		_ = denied.Close()
+	}
+	if err == nil || response == nil || response.StatusCode != http.StatusForbidden {
+		t.Fatalf("opaque origin was not rejected: response=%v err=%v", response, err)
+	}
+}
+
+func TestLocalDevelopmentOriginsAreAllowedForHTTPAndWebSocket(t *testing.T) {
+	s := newServer()
+	h := httptest.NewServer(s.routes())
+	defer h.Close()
+	url := "ws" + strings.TrimPrefix(h.URL, "http") + "/ws"
+
+	for _, origin := range []string{"http://localhost:8000", "http://127.0.0.1:8000"} {
+		request := httptest.NewRequest(http.MethodGet, "/health", nil)
+		request.Header.Set("Origin", origin)
+		result := httptest.NewRecorder()
+		s.routes().ServeHTTP(result, request)
+		if result.Code != http.StatusOK || result.Header().Get("Access-Control-Allow-Origin") != origin {
+			t.Fatalf("development origin %q missing CORS headers: status=%d origin=%q", origin, result.Code, result.Header().Get("Access-Control-Allow-Origin"))
+		}
+		conn, response, err := websocket.DefaultDialer.Dial(url, http.Header{"Origin": []string{origin}})
+		if err != nil {
+			t.Fatalf("development origin %q was rejected by the WebSocket endpoint: response=%v err=%v", origin, response, err)
+		}
+		_ = conn.Close()
+	}
+
+	// The allowlist stays explicit: an unlisted localhost port gets no access.
+	unlisted := httptest.NewRequest(http.MethodGet, "/health", nil)
+	unlisted.Header.Set("Origin", "http://localhost:9999")
+	unlistedResult := httptest.NewRecorder()
+	s.routes().ServeHTTP(unlistedResult, unlisted)
+	if unlistedResult.Header().Get("Access-Control-Allow-Origin") != "" {
+		t.Fatal("unlisted localhost origin received CORS access")
+	}
+}
 
 func openTestSocket(t *testing.T, base string) *websocket.Conn {
 	t.Helper()
