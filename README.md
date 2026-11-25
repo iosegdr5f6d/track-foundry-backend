@@ -1,6 +1,6 @@
 # Track Foundry multiplayer backend
 
-This is the standalone, in-memory backend for `../frontend/track-foundry-v11.html`. It owns room membership, host permissions, readiness, shared setup, countdown timestamps, and relaying of client-reported vehicle state. It does **not** simulate or validate vehicle physics server-side; this is a casual multiplayer prototype, not an anti-cheat service.
+This is the standalone, in-memory backend for `../frontend/track-foundry-multiplayer.html`. It owns room membership, host permissions, readiness, shared setup, countdown timestamps, and relaying of client-reported vehicle state. It does **not** simulate or validate vehicle physics server-side; this is a casual multiplayer prototype, not an anti-cheat service.
 
 ## Run locally
 
@@ -26,7 +26,7 @@ Either use this directory as the repository root or set Render's **Root Director
 - Start command: `./track-foundry-server`
 - Environment variable: `ALLOWED_ORIGINS=https://sites.google.com,https://YOUR-PUBLISHED-SITE-ORIGIN`
 
-Render supplies `PORT`; do not set it manually. `render.yaml` carries the same basic configuration for Blueprint deployments. After deployment, set this near the beginning of `frontend/track-foundry-v11.html`:
+Render supplies `PORT`; do not set it manually. `render.yaml` carries the same basic configuration for Blueprint deployments. After deployment, set this near the beginning of `frontend/track-foundry-multiplayer.html`:
 
 ```js
 const MULTIPLAYER_BACKEND_URL = 'https://YOUR-RENDER-SERVICE.onrender.com';
@@ -34,7 +34,7 @@ const MULTIPLAYER_BACKEND_URL = 'https://YOUR-RENDER-SERVICE.onrender.com';
 
 The frontend derives `wss://…/ws` from an HTTPS URL. For local development an `http://localhost:8080` URL derives `ws://…/ws`.
 
-Browser origins contain only scheme and host, not a Google Sites page path. Add the actual published-page origin if it differs from `https://sites.google.com` (for example, a custom domain). The server also permits the documented `localhost` and `127.0.0.1` development origins. Keep `ALLOWED_ORIGINS` explicit; do not use a wildcard in production.
+Browser origins contain only scheme and host, not a Google Sites page path. Add the actual published-page origin if it differs from `https://sites.google.com` (for example, a custom domain). The server also permits the documented `localhost` and `127.0.0.1` development origins (ports 3000, 5173, 8000 and 8080). A directly opened `file://` page has the opaque `null` origin and is deliberately not allowed. Keep `ALLOWED_ORIGINS` explicit; do not use a wildcard in production.
 
 ## Endpoints and protocol
 
